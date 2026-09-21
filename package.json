@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "expo": "~54.0.29",
+    "expo-constants": "~18.0.12",
+    "expo-splash-screen": "~31.0.12",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-google-mobile-ads": "^17.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@types/react": "~19.1.17",
+    "babel-preset-expo": "~54.0.3",
+    "typescript": "~5.9.3"
+  },
+  "main": "node_modules/expo/AppEntry.js",
+  "name": "block-bloom",
+  "private": true,
+  "scripts": {
+    "android": "expo run:android",
+    "check": "tsc --noEmit",
+    "start": "expo start",
+    "ios": "expo run:ios"
+  },
+  "version": "1.0.0"
+}
