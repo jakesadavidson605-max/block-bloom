@@ -1,0 +1,88 @@
+name: EAS Android Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install eas-cli
+        run: npm install -g eas-cli
+      - name: Install dependencies
+        run: npm install
+      - name: Link EAS project (create if needed)
+        run: eas init --account jakedavidson1990s-team --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build AAB on EAS
+        run: eas build --platform android --profile production --non-interactive --wait --json > build.json
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Download AAB from EAS
+        if: success()
+        run: |
+          node -e "
+          const fs=require('fs');
+          const raw=fs.readFileSync('build.json','utf8');
+          let url=null;
+          try{
+            const j=JSON.parse(raw);
+            const b=Array.isArray(j)?j[0]:j;
+            url=b.artifacts&&b.artifacts.buildUrl;
+          }catch(e){ console.error('build.json parse failed'); }
+          if(!url){ console.error('no buildUrl in build.json'); process.exit(1); }
+          fs.appendFileSync(process.env.GITHUB_ENV,'BUILD_URL='+url+'\n');
+          console.log('buildUrl found, length '+url.length);
+          "
+          curl -L "$BUILD_URL" -o app-release.aab
+          ls -la app-release.aab
+      - name: Upload android-aab artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: app-release.aab
+      - name: Dump EAS build failure details
+        if: failure()
+        run: |
+          echo "=== build.json (first 4000 chars) ==="
+          head -c 4000 build.json 2>/dev/null; echo
+          echo "=== EAS error + logs via GraphQL ==="
+          node -e "
+          const https=require('https'),fs=require('fs');
+          let appId=null;
+          try{
+            const cfg=fs.readFileSync('app.config.ts','utf8');
+            const m=cfg.match(/projectId['\"]?\s*:\s*['\"]([^'\"]+)['\"]/);
+            if(m) appId=m[1];
+          }catch(e){}
+          if(!appId){ console.log('no projectId found in app.config.ts'); process.exit(0); }
+          console.log('appId:',appId);
+          const query='{ app { byId(appId: \"'+appId+'\") { builds(offset: 0, limit: 2) { id status error { buildPhase errorCode message } logFileUrls } } } }';
+          const req=https.request('https://api.expo.dev/graphql',{method:'POST',headers:{'Authorization':'Bearer '+process.env.EXPO_TOKEN,'Content-Type':'application/json'}},res=>{
+            let d='';res.on('data',c=>d+=c);res.on('end',()=>{
+              try{
+                const builds=JSON.parse(d).data.app.byId.builds;
+                const b=builds[0];
+                console.log('latest build:',b.id,b.status);
+                console.log('error:',JSON.stringify(b.error));
+                const url=(b.logFileUrls||[])[0];
+                if(url){ console.log('fetching log file...'); https.get(url,r=>{let t='';r.on('data',c=>t+=c);r.on('end',()=>{const lines=t.split('\n');console.log('--- last 60 log lines ---');console.log(lines.slice(-60).join('\n'));});}); }
+                else console.log('no logFileUrls in response');
+              }catch(e){ console.log('parse failed, raw head:',d.slice(0,1500)); }
+            });
+          });
+          req.on('error',e=>console.log('graphql request error:',e.message));
+          req.end(JSON.stringify({query}));
+          "
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
