@@ -1,5 +1,6 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Block Bloom! Puzzle',
@@ -48,4 +49,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
   ],
+  extra: {
+    eas: {
+      projectId: '1faa0720-892a-4731-936c-2372f5275453',
+    },
+  },
 });
